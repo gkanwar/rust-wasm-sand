@@ -13,7 +13,7 @@ pub struct WasmGameContext {
     step_time_ms: f64,
 }
 
-const STEP_TIME_MS_120FPS: f64 = 1000.0 / 120.0;
+const STEP_TIME_MS_60FPS: f64 = 1000.0 / 60.0;
 
 #[wasm_bindgen]
 impl WasmGameContext {
@@ -21,7 +21,7 @@ impl WasmGameContext {
         Self {
             game: sand::Game::new(width, height),
             renderer: None,
-            step_time_ms: STEP_TIME_MS_120FPS,
+            step_time_ms: STEP_TIME_MS_60FPS,
         }
     }
     pub fn bind_canvas(&mut self, canvas: web_sys::HtmlCanvasElement)
@@ -47,7 +47,10 @@ impl WasmGameContext {
         if n_ticks > 1 {
             web_sys::console::log_2(&"Dropping frames".into(), &(n_ticks - 1).into());
         }
-        physics::step(&mut self.game.particle_system);
+        if self.game.running {
+            physics::step(&mut self.game.particle_system);
+        }
+        self.game.last_tick = timestamp;
     }
     pub fn mouse_down(&mut self, x: f64, y: f64) {
         let coord = util::Coord::new(x, y);

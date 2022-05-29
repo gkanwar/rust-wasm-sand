@@ -13,6 +13,7 @@ const RESCALE = 4;
     const [gameWidth, gameHeight] = [width/RESCALE, height/RESCALE];
 
     const gameContext = WasmGameContext.new(gameWidth, gameHeight);
+    gameContext.bind_canvas(canvas);
     setMouseHooks(canvas, gameContext);
 
     const render = (timestamp) => {
