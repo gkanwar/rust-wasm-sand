@@ -5,7 +5,7 @@
     "repository": "https://github.com/gkanwar/rust-wasm-sand.git",
     "license": "MIT",
     "scripts": {
-        "start": "snowpack dev --verbose",
+        "start": "CHOKIDAR_USEPOLLING=1 snowpack dev --verbose",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "devDependencies": {
