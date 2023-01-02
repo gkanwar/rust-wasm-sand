@@ -1,3 +1,4 @@
+use std::slice::{ChunksExact, ChunksExactMut};
 
 pub enum PixelFormat {
     RGBA
@@ -22,17 +23,29 @@ impl Pixels {
         assert!(x < self.width && y < self.height);
         BYTES_PER_PIXEL * (y * self.width + x)
     }
-    pub fn draw(&mut self, x: usize, y: usize, color: Color) {
-        let ind = self.ind(x, y);
-        match PIXEL_FORMAT {
-            PixelFormat::RGBA => {
-                self.data[ind] = (255.0 * color.r) as u8;
-                self.data[ind+1] = (255.0 * color.g) as u8;
-                self.data[ind+2] = (255.0 * color.b) as u8;
-                self.data[ind+3] = (255.0 * color.a) as u8;
-            }
-        };
+    /// Iterate over pixel data by location in row-fastest order.
+    pub fn iter_row_col(&self) -> ChunksExact<u8> {
+        self.data.chunks_exact(BYTES_PER_PIXEL)
     }
+    /// Iterate over mutable pixel data by location in row-fastest order.
+    pub fn iter_row_col_mut(&mut self) -> ChunksExactMut<u8> {
+        self.data.chunks_exact_mut(BYTES_PER_PIXEL)
+    }
+}
+
+pub fn fill_pix(pix: &mut [u8], color: Color) {
+    match PIXEL_FORMAT {
+        PixelFormat::RGBA => {
+            assert!(pix.len() == 4);
+            let ptr = pix.as_mut_ptr();
+            unsafe {
+                *ptr = (255.0 * color.r) as u8;
+                *ptr.add(1) = (255.0 * color.g) as u8;
+                *ptr.add(2) = (255.0 * color.b) as u8;
+                *ptr.add(3) = (255.0 * color.a) as u8;
+            }
+        }
+    };
 }
 
 /// Universal representation of color, to be converted into specific binary

@@ -1,6 +1,9 @@
+use std::iter::zip;
+use std::slice::{Iter, IterMut};
+
 use crate::dyn_store::DynStore;
 use crate::input::MouseState;
-use crate::render::{Color, Pixels, EMPTY_COLOR};
+use crate::render::{Color, Pixels, EMPTY_COLOR, fill_pix};
 
 pub struct Game {
     pub running: bool,
@@ -30,18 +33,16 @@ impl Game {
         // FORNOW: Just assume top-left alignment between pixels space and
         // game space. Ideally the sizes would be equal also.
         let grid = &self.particle_system.grid;
-        for x in 0..(pixels.width as usize).min(grid.width) {
-            for y in 0..(pixels.height as usize).min(grid.height) {
-                match grid.get(x, y) {
-                    Some(i) => {
-                        if let Some(particle) = self.particle_system.particles.get(i) {
-                            pixels.draw(x as usize, y as usize, self.particle_system.elements.get(particle.kind).color);
-                        }
+        for (pix,cell) in zip(pixels.iter_row_col_mut(), grid.iter_row_col()) {
+            match *cell {
+                Some(i) => {
+                    if let Some(particle) = self.particle_system.particles.get(i) {
+                        fill_pix(pix, self.particle_system.elements.get(particle.kind).color);
                     }
-                    None => {
-                        pixels.draw(x as usize, y as usize, EMPTY_COLOR);
-                    }
-                };
+                }
+                None => {
+                    fill_pix(pix, EMPTY_COLOR);
+                }
             }
         }
     }
@@ -107,9 +108,6 @@ pub struct Grid {
     pub cells: Vec<Option<usize>>,
 }
 impl Grid {
-    fn ind(&self, x: usize, y: usize) -> usize {
-        x * self.height + y
-    }
     pub fn new(width: usize, height: usize) -> Self {
         Grid {
             width: width,
@@ -133,6 +131,15 @@ impl Grid {
             self.cells[i] = val;
             UpdateResult::Ok
         }
+    }
+    fn ind(&self, x: usize, y: usize) -> usize {
+        y * self.width + x
+    }
+    pub fn iter_row_col(&self) -> Iter<Option<usize>> {
+        self.cells.iter()
+    }
+    pub fn iter_row_col_mut(&mut self) -> IterMut<Option<usize>> {
+        self.cells.iter_mut()
     }
 }
 pub enum UpdateResult {
