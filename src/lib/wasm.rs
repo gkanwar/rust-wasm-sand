@@ -33,10 +33,11 @@ impl WasmGameContext {
         self.game.running = running;
         self.game.last_tick = timestamp;
     }
-    pub fn render(&self) {
-        if let Some(renderer) = &self.renderer {
-            renderer.render(&self.game);
+    pub fn render(&mut self) -> Result<(), JsValue> {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.render(&self.game)?;
         }
+        Ok(())
     }
     pub fn update(&mut self, timestamp: f64) {
         let dt = timestamp - self.game.last_tick;
@@ -45,7 +46,7 @@ impl WasmGameContext {
             return;
         }
         if n_ticks > 1 {
-            web_sys::console::log_2(&"Dropping frames".into(), &(n_ticks - 1).into());
+            // web_sys::console::log_1(&format!("Dropped {} ticks", n_ticks - 1).into());
         }
         if self.game.running {
             physics::step(&mut self.game.particle_system);

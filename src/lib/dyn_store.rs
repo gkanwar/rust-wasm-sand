@@ -66,6 +66,10 @@ impl<T: Default> DynStore<T> {
             last_ind: None,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
 }
 
 pub struct DynStoreIter<'a, T: Default> {

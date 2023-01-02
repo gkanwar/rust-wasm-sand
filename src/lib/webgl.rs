@@ -1,3 +1,4 @@
+use crate::render::{Pixels, PixelFormat, PIXEL_FORMAT, BYTES_PER_PIXEL};
 use crate::sand;
 use js_sys::ArrayBuffer;
 use js_sys::Float32Array;
@@ -8,14 +9,19 @@ use web_sys::WebGlBuffer;
 use web_sys::WebGlTexture;
 use web_sys::WebGlUniformLocation;
 use web_sys::{WebGl2RenderingContext as WebGL, WebGlShader, WebGlSampler, WebGlProgram};
-use rand::Rng;
+
 
 // Texture storage settings
-const TEX_BYTES_PER_PIXEL: usize = 4;
-const TEX_INTERNAL_FORMAT: u32 = WebGL::RGBA;
-const TEX_FORMAT: u32 = WebGL::RGBA;
+const TEX_BYTES_PER_PIXEL: usize = BYTES_PER_PIXEL;
+const TEX_INTERNAL_FORMAT: u32 = match PIXEL_FORMAT {
+    PixelFormat::RGBA => WebGL::RGBA
+};
+const TEX_FORMAT: u32 = match PIXEL_FORMAT {
+    PixelFormat::RGBA => WebGL::RGBA
+};
 const TEX_NUM_TYPE: u32 = WebGL::UNSIGNED_BYTE;
 // Texture pixel to screen pixel ratio
+// TODO: Unify this with the JS constant
 const TEX_SCALE: u32 = 4;
 
 fn get_shader_compile_err(gl: &WebGL, shader: &web_sys::WebGlShader, shader_type: &'static str) -> JsError {
@@ -135,8 +141,8 @@ fn bind_shader_buffers(
     Ok(())
 }
 
-fn clear_screen(gl: &WebGL, b: f32) {
-    gl.clear_color(0.0, b, b, 1.0);
+fn clear_screen(gl: &WebGL) {
+    gl.clear_color(0.0, 0.0, 0.0, 1.0);
     gl.clear(WebGL::COLOR_BUFFER_BIT | WebGL::DEPTH_BUFFER_BIT);
 }
 
@@ -166,17 +172,25 @@ fn make_gl_buffer(data: &ArrayBuffer, gl: &WebGL, buf_kind: u32) -> Result<WebGl
     Ok(buffer)
 }
 
-fn make_gl_texture(tex_array: &[u8], width: i32, height: i32, gl: &WebGL) -> Result<WebGlTexture, JsValue> {
+/// Create GL texture 0 using global format and type settings
+fn make_gl_texture(pixels: &Pixels, gl: &WebGL) -> Result<WebGlTexture, JsValue> {
     let texture = gl.create_texture().ok_or("Could not create texture.")?;
     gl.active_texture(WebGL::TEXTURE0);
     gl.bind_texture(WebGL::TEXTURE_2D, Some(&texture));
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-        WebGL::TEXTURE_2D, 0, TEX_INTERNAL_FORMAT as i32, width, height, 0,
-        TEX_FORMAT, TEX_NUM_TYPE, Some(tex_array))?;
+        WebGL::TEXTURE_2D, 0, TEX_INTERNAL_FORMAT as i32, pixels.width as i32, pixels.height as i32,
+        0, TEX_FORMAT, TEX_NUM_TYPE, Some(&pixels.data))?;
     Ok(texture)
 }
 
-fn make_gl_sampler(gl: &WebGL) -> Result<WebGlSampler, JsValue> {
+/// Upload texture data to currently active GL texture using global format and type settings
+fn upload_gl_texture(pixels: &Pixels, gl: &WebGL) -> Result<(), JsValue> {
+    gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(
+        WebGL::TEXTURE_2D, 0, 0, 0, pixels.width as i32, pixels.height as i32,
+        TEX_FORMAT, TEX_NUM_TYPE, Some(&pixels.data))
+}
+
+fn make_gl_nearest_sampler(gl: &WebGL) -> Result<WebGlSampler, JsValue> {
     let sampler = gl.create_sampler().ok_or("Failed to create sampler")?;
     gl.sampler_parameteri(&sampler, WebGL::TEXTURE_MIN_FILTER, WebGL::NEAREST as i32);
     gl.sampler_parameteri(&sampler, WebGL::TEXTURE_MAG_FILTER, WebGL::NEAREST as i32);
@@ -191,7 +205,7 @@ struct RendererBuffers {
     sampler: WebGlSampler
 }
 impl RendererBuffers {
-    fn new(gl: &WebGL, tex_array: &[u8], width: i32, height: i32) -> Result<Self, JsValue> {
+    fn new(gl: &WebGL, pixels: &Pixels) -> Result<Self, JsValue> {
         let js_quad_indices = Uint16Array::from(&QUAD_INDICES[..]);
         let js_quad_vertices = Float32Array::from(&QUAD_VERTICES[..]);
         let js_quad_tex_vertices = Float32Array::from(&QUAD_TEX_VERTICES[..]);
@@ -199,33 +213,23 @@ impl RendererBuffers {
             index_buffer: make_gl_buffer(&js_quad_indices.buffer(), gl, WebGL::ELEMENT_ARRAY_BUFFER)?,
             vertex_buffer: make_gl_buffer(&js_quad_vertices.buffer(), gl, WebGL::ARRAY_BUFFER)?,
             tex_vertex_buffer: make_gl_buffer(&js_quad_tex_vertices.buffer(), gl, WebGL::ARRAY_BUFFER)?,
-            texture: make_gl_texture(tex_array, width, height, gl)?,
-            sampler: make_gl_sampler(gl)?
+            texture: make_gl_texture(&pixels, gl)?,
+            sampler: make_gl_nearest_sampler(gl)?
         })
     }
 }
 
 fn make_tex_array(width: u32, height: u32) -> Vec<u8> {
     let length = (width * height) as usize * TEX_BYTES_PER_PIXEL;
-    let mut rng = rand::thread_rng();
-    let mut out: Vec<u8> = vec![0x0f; length];
-    for i in 0..(width*height) as usize {
-        for j in 0..TEX_BYTES_PER_PIXEL-1 {
-            let ind = TEX_BYTES_PER_PIXEL*i + j;
-            out[ind] = rng.gen();
-        }
-        out[TEX_BYTES_PER_PIXEL*i+TEX_BYTES_PER_PIXEL-1] = 0x0f;
-    }
-    assert_eq!(out.len(), length);
-    out
-    // vec![0xff; length]
+    vec![0; length]
 }
 
 pub struct Renderer {
     canvas: web_sys::HtmlCanvasElement,
     gl: WebGL,
     program: WebGlProgram,
-    gl_data: RendererBuffers
+    gl_data: RendererBuffers,
+    pixels: Pixels
 }
 
 impl Renderer {
@@ -239,25 +243,33 @@ impl Renderer {
         let tex_width = canvas.width() / TEX_SCALE;
         let tex_height = canvas.height() / TEX_SCALE;
         let tex_array = make_tex_array(tex_width, tex_height);
-        let gl_data = RendererBuffers::new(
-            &gl, &tex_array, tex_width as i32, tex_height as i32)?;
+        let pixels = Pixels {
+            data: tex_array,
+            width: tex_width as usize,
+            height: tex_height as usize
+        };
+        let gl_data = RendererBuffers::new(&gl, &pixels)?;
         bind_shader_buffers(&gl, &program, &gl_data)?;
-        clear_screen(&gl, 0.3);
+        clear_screen(&gl);
         Ok(Self {
             canvas: canvas,
             gl: gl,
             program: program,
-            gl_data: gl_data
+            gl_data: gl_data,
+            pixels: pixels
         })
     }
 
 
-    pub fn render(&self, game: &sand::Game) {
+    pub fn render(&mut self, game: &sand::Game) -> Result<(), JsValue> {
         // FORNOW: do it the dumb way by clearing and re-drawing everything
-        clear_screen(&self.gl, 1.0);
+        clear_screen(&self.gl);
+        game.draw(&mut self.pixels);
+        upload_gl_texture(&self.pixels, &self.gl)?;
         self.gl.use_program(Some(&self.program));
         self.gl.draw_elements_with_i32(
             WebGL::TRIANGLES, QUAD_INDICES.len() as i32, INDICES_TYPE, 0);
+        Ok(())
     }
 }
 

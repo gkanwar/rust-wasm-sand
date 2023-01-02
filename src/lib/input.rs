@@ -38,7 +38,7 @@ impl ParticleSystem {
                     self.delete_particle(i);
                 }
             }
-            BrushKind::Element(kind) => {
+            BrushKind::Draw(kind) => {
                 if let None = cur_val {
                     self.create_particle(x, y, *kind);
                 }
@@ -52,8 +52,10 @@ impl ParticleSystem {
         let x1 = (coord.x + brush.radius).ceil().clamp(0.0, f64::INFINITY) as usize;
         let y1 = (coord.y + brush.radius).ceil().clamp(0.0, f64::INFINITY) as usize;
         for x in x0..x1 {
+            let dx = x as f64 - coord.x; // TODO: offset by half pixel?
             for y in y0..y1 {
-                if (x*x + y*y) as f64 <= brush.radius {
+                let dy = y as f64 - coord.y;
+                if dx*dx + dy*dy <= brush.radius {
                     self.draw_point(x, y, &brush.kind);
                 }
             }

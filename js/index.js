@@ -14,7 +14,7 @@ const RESCALE = 4;
 
     const gameContext = WasmGameContext.new(gameWidth, gameHeight);
     gameContext.bind_canvas(canvas);
-    setMouseHooks(canvas, gameContext);
+    setMouseHooks(canvas, [gameWidth, gameHeight], gameContext);
 
     const render = (timestamp) => {
         gameContext.render();
@@ -25,6 +25,23 @@ const RESCALE = 4;
     window.requestAnimationFrame(render);
 })()
 
-function setMouseHooks(canvas, gameContext) {
-
+function setMouseHooks(canvas, dims, gameContext) {
+    const [_, gameHeight] = dims;
+    canvas.addEventListener("mousedown", (event) => {
+        console.log(`mouse down ${event.offsetX / RESCALE} ${gameHeight - event.offsetY / RESCALE}`);
+        gameContext.mouse_down(
+            event.offsetX / RESCALE,
+            gameHeight - event.offsetY / RESCALE);
+    });
+    canvas.addEventListener("mouseup", (event) => {
+        console.log("mouse up");
+        gameContext.mouse_up(
+            event.offsetX / RESCALE,
+            gameHeight - event.offsetY / RESCALE);
+    });
+    canvas.addEventListener("mousemove", (event) => {
+        gameContext.mouse_move(
+            event.offsetX / RESCALE,
+            gameHeight - event.offsetY / RESCALE);
+    });
 }
