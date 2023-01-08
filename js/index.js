@@ -28,7 +28,7 @@ const RESCALE = 4;
 function setMouseHooks(canvas, dims, gameContext) {
     const [_, gameHeight] = dims;
     canvas.addEventListener("mousedown", (event) => {
-        console.log(`mouse down ${event.offsetX / RESCALE} ${gameHeight - event.offsetY / RESCALE}`);
+        console.log("mouse down");
         gameContext.mouse_down(
             event.offsetX / RESCALE,
             gameHeight - event.offsetY / RESCALE);
@@ -40,6 +40,7 @@ function setMouseHooks(canvas, dims, gameContext) {
             gameHeight - event.offsetY / RESCALE);
     });
     canvas.addEventListener("mousemove", (event) => {
+        console.log("mouse move");
         gameContext.mouse_move(
             event.offsetX / RESCALE,
             gameHeight - event.offsetY / RESCALE);

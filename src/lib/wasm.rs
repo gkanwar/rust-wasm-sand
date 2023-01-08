@@ -61,25 +61,15 @@ impl WasmGameContext {
     pub fn mouse_move(&mut self, x: f64, y: f64) {
         let coord = util::Coord::new(x, y);
         match self.game.mouse_state {
-            input::MouseState::Up => {
-                input::handle_mouse_click(coord, &mut self.game);
-            }
+            input::MouseState::Up => {}
             input::MouseState::Down(old_coord) => {
+                web_sys::console::log_1(&format!("Drag {},{} -> {},{}", old_coord.x, old_coord.y, coord.x, coord.y).into());
                 input::handle_mouse_drag(old_coord, coord, &mut self.game);
+                self.game.mouse_state = input::MouseState::Down(coord);
             }
         }
-        self.game.mouse_state = input::MouseState::Down(coord);
     }
     pub fn mouse_up(&mut self, x: f64, y: f64) {
-        let coord = util::Coord::new(x, y);
-        match self.game.mouse_state {
-            input::MouseState::Up => {
-                input::handle_mouse_click(coord, &mut self.game);
-            }
-            input::MouseState::Down(old_coord) => {
-                input::handle_mouse_drag(old_coord, coord, &mut self.game);
-            }
-        }
         self.game.mouse_state = input::MouseState::Up;
     }
 }

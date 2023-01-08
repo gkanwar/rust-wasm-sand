@@ -1,7 +1,7 @@
 use std::iter::zip;
 use std::slice::{Iter, IterMut};
+use slotmap::{SlotMap, DefaultKey, new_key_type};
 
-use crate::dyn_store::DynStore;
 use crate::input::MouseState;
 use crate::render::{Color, Pixels, EMPTY_COLOR, fill_pix};
 
@@ -20,10 +20,10 @@ impl Game {
             mouse_state: MouseState::Up,
             brush: Brush {
                 kind: BrushKind::Draw(ParticleKind::Base(0)),
-                radius: 10.0,
+                radius: 4.0,
             },
             particle_system: ParticleSystem {
-                particles: DynStore::<Particle>::new(512),
+                particles: SlotMap::<ParticleInd, Particle>::with_capacity_and_key(512),
                 grid: Grid::new(width, height),
                 elements: Elements::new(),
             },
@@ -58,16 +58,19 @@ pub enum BrushKind {
     Draw(ParticleKind),
 }
 
+new_key_type! { pub struct ParticleInd; }
+
 pub struct ParticleSystem {
     // TODO: boundaries, etc?
-    pub particles: DynStore<Particle>,
+    pub particles: SlotMap<ParticleInd, Particle>,
     pub grid: Grid,
     pub elements: Elements,
 }
 
 pub struct Element {
     name: String,
-    color: Color
+    color: Color,
+    pub grav_scale: f64
 }
 
 pub struct Elements {
@@ -93,11 +96,13 @@ fn create_base_elements() -> Vec<Element> {
     let mut elements = Vec::<Element>::new();
     elements.push(Element {
         name: "Sand".to_string(),
-        color: Color::new_rgb(1.000, 0.835, 0.333)
+        color: Color::new_rgb(1.000, 0.835, 0.333),
+        grav_scale: 1.0,
     });
     elements.push(Element {
         name: "Water".to_string(),
-        color: Color::new_rgb(0.000, 0.000, 1.000)
+        color: Color::new_rgb(0.000, 0.000, 1.000),
+        grav_scale: 1.0,
     });
     elements
 }
@@ -105,7 +110,7 @@ fn create_base_elements() -> Vec<Element> {
 pub struct Grid {
     pub width: usize,
     pub height: usize,
-    pub cells: Vec<Option<usize>>,
+    pub cells: Vec<Option<ParticleInd>>,
 }
 impl Grid {
     pub fn new(width: usize, height: usize) -> Self {
@@ -115,14 +120,14 @@ impl Grid {
             cells: vec![None; width * height],
         }
     }
-    pub fn get(&self, x: usize, y: usize) -> Option<usize> {
+    pub fn get(&self, x: usize, y: usize) -> Option<ParticleInd> {
         if x >= self.width || y >= self.height {
             None
         } else {
             self.cells[self.ind(x, y)]
         }
     }
-    pub fn set(&mut self, x: usize, y: usize, val: Option<usize>) -> UpdateResult {
+    pub fn set(&mut self, x: usize, y: usize, val: Option<ParticleInd>) -> UpdateResult {
         if x >= self.width || y >= self.height {
             UpdateResult::Err("Out of bounds")
         }
@@ -135,10 +140,10 @@ impl Grid {
     fn ind(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
-    pub fn iter_row_col(&self) -> Iter<Option<usize>> {
+    pub fn iter_row_col(&self) -> Iter<Option<ParticleInd>> {
         self.cells.iter()
     }
-    pub fn iter_row_col_mut(&mut self) -> IterMut<Option<usize>> {
+    pub fn iter_row_col_mut(&mut self) -> IterMut<Option<ParticleInd>> {
         self.cells.iter_mut()
     }
 }
